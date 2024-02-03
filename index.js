@@ -1,12 +1,12 @@
 const express = require('express')
 const path = require('path');
 const fs = require("fs")
-const config = require("./config.json")
+require("dotenv").config()
 const log = require("streamlogs").defLog
 const app = express()
 app.disable('x-powered-by');
 
-if(config.forceHttps) {
+if(process.env.ForceHTTPS == 1) {
   app.use((req, res, next) => {
     res.setHeader("Content-Security-Policy", "upgrade-insecure-requests;")
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
@@ -22,46 +22,27 @@ app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "SAMEORIGIN")
   res.setHeader("X-Content-Type-Options", "nosniff")
   res.setHeader("X-XSS-Protection", "1;")
-
   next()
 })
 
 
-
+// API routing
 fs.readdirSync("./routes").forEach((route) => {
   app.use("/api/" + route.replace(".js", ""), require("./routes/" + route))
 })
 
-app.get("/*", (req, res) => {
-  file = path.resolve(path.join("./public/", req.url))
-  if(file.startsWith(path.resolve("./public"))) {
-    if(fs.existsSync(file)) {
-      if(fs.statSync(file).isFile()) {
-        res.sendFile(file)
-        return
-      } else {
-        if(fs.existsSync(path.resolve(path.join(file, "/index.html")))) {
-          file = path.resolve(path.join(file, "/index.html"))
-          res.sendFile(file)
-          return
-        }
-      }
-    }
-  }
-  if(fs.existsSync("./public/404.html")) {
+// static files
+app.use(express.static(path.join(__dirname, "/public")))
+
+app.get("*", (req, res) => {
+  if(fs.existsSync(path.join(__dirname, "/public/404.html"))) {
     res.status(404)
-    res.sendFile(path.resolve("./public/404.html"))
+    res.sendFile(path.join(__dirname, "/public/404.html"))
+  } else {
+    res.sendStatus(404)
   }
 })
-
-app.listen(80, () => {
-  log.info("App listen on port 80!", "web-main")
-})
-
-
-process.on("unhandledRejection", (reason, p) => {
-  log.error("Internal error: " + reason + " " + p, "anticrash")
-})
-process.on("uncaughtException", (err, origin) => {
-  log.error("Internal error: " + err + " " + origin, "anticrash")
+console.log(process.env.PORT, process.env.ForceHTTPS)
+app.listen(process.env.PORT ? process.env.PORT : 80, () => {
+  log.info("App listen on port " + (process.env.PORT ? process.env.PORT : 80) + "!", "web-main")
 })
